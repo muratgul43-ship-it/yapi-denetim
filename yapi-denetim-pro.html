@@ -3605,99 +3605,63 @@
                 sozlesmeTarihi: proje?.sozlesmeTarihi || '', ruhsatTarihi: proje?.ruhsatTarihi || '',
             });
             const [yeniYilSonu, setYeniYilSonu] = useState({ yil: '', seviye: '' });
-            const [manuelOranDuzenleme, setManuelOranDuzenleme] = useState(false); // Manuel düzenleme modu
 
             useEffect(() => {
-                if (form.ruhsatTarihi && form.yapiGrubu) {
+                if (form.ruhsatTarihi && form.yapiGrubu && form.metrekare) {
                     const birimFiyat = getBirimFiyat(form.ruhsatTarihi, form.yapiGrubu);
                     const metrekare = parseFloat(form.metrekare) || 0;
                     
-                    // Ruhsat tarihinden bu yana kaç yıl geçti hesapla
-                    const ruhsatTarihiObj = new Date(form.ruhsatTarihi);
-                    const bugun = new Date();
-                    const farkMs = bugun - ruhsatTarihiObj;
-                    const farkGun = farkMs / (1000 * 60 * 60 * 24);
-                    const farkYil = Math.floor(farkGun / 365.25);
-                    const yil = farkYil + 1; // 1. yıl, 2. yıl, 3. yıl...
+                    // SADECE birim fiyat güncellenir
+                    // Hizmet oranı MANUEL girilir!
+                    const oran = parseFloat(form.hizmetBedeliOrani) || 1.43;
                     
-                    // Otomatik oran hesapla (bugünün tarihine göre kaçıncı yıl)
-                    const otomatikOran = getHizmetOrani(form.ruhsatTarihi, metrekare, yil);
+                    const hizmetBedeli = hesaplaHizmetBedeli(parseFloat(form.guncelMetrekare || form.metrekare) || 0, birimFiyat, oran, form.sanayiBolgesi);
+                    const sozlesmeBedeli = hesaplaHizmetBedeli(metrekare, birimFiyat, oran, form.sanayiBolgesi);
                     
-                    // Manuel düzenleme modundaysa, oranı güncelleme
-                    let oran = otomatikOran > 0 ? otomatikOran : parseFloat(form.hizmetBedeliOrani) || 0;
-                    const hizmetBedeli = hesaplaHizmetBedeli(parseFloat(form.guncelMetrekare || form.metrekare) || 0, birimFiyat, oran || 1.43, form.sanayiBolgesi);
-                    const sozlesmeBedeli = hesaplaHizmetBedeli(metrekare, birimFiyat, oran || 1.43, form.sanayiBolgesi);
-                    
-                    // DÜZELTME: Manuel düzenlemedeyse oranı değiştirme!
-                    if (manuelOranDuzenleme) {
-                        // Manuel düzenlemedeyken sadece hizmet bedellerini güncelle, oranı değiştirme
-                        oran = parseFloat(form.hizmetBedeliOrani) || 0;
-                        const hizmetBedeli = hesaplaHizmetBedeli(parseFloat(form.guncelMetrekare || form.metrekare) || 0, birimFiyat, oran || 1.43, form.sanayiBolgesi);
-                        const sozlesmeBedeli = hesaplaHizmetBedeli(metrekare, birimFiyat, oran || 1.43, form.sanayiBolgesi);
-                        setForm(prev => ({ ...prev, birimFiyat, hizmetBedeli, sozlesmeBedeli: proje ? prev.sozlesmeBedeli : sozlesmeBedeli }));
-                    } else {
-                        // Otomatik modda oran güncellenir (ruhsat yıldönümüne göre)
-                        setForm(prev => ({ ...prev, birimFiyat, hizmetBedeli, sozlesmeBedeli: proje ? prev.sozlesmeBedeli : sozlesmeBedeli, hizmetBedeliOrani: otomatikOran > 0 ? otomatikOran : prev.hizmetBedeliOrani }));
-                    }
+                    setForm(prev => ({ 
+                        ...prev, 
+                        birimFiyat, 
+                        hizmetBedeli, 
+                        sozlesmeBedeli: proje ? prev.sozlesmeBedeli : sozlesmeBedeli 
+                    }));
                 }
-            }, [form.ruhsatTarihi, form.yapiGrubu, form.metrekare, form.guncelMetrekare, form.sanayiBolgesi, form.hizmetBedeliOrani, form.yilSonuSeviyeleri, manuelOranDuzenleme]);
+            }, [form.ruhsatTarihi, form.yapiGrubu, form.metrekare, form.guncelMetrekare, form.sanayiBolgesi, form.hizmetBedeliOrani, form.yilSonuSeviyeleri]);
 
             const handleYilSonuEkle = () => {
                 if (yeniYilSonu.yil && yeniYilSonu.seviye) {
                     const yeniSeviyeleri = [...form.yilSonuSeviyeleri, {...yeniYilSonu}];
                     
-                    console.log('=== YIL SONU EKLEME ===');
-                    console.log('Yeni Yıl Sonu:', yeniYilSonu);
-                    console.log('Tüm Yıl Sonu Seviyeleri:', yeniSeviyeleri);
-                    
                     // En yüksek yıl sonu seviyesini bul
                     const enYuksekYilSonu = Math.max(...yeniSeviyeleri.map(ys => parseFloat(ys.seviye) || 0));
-                    console.log('En Yüksek Yıl Sonu Seviyesi:', enYuksekYilSonu);
                     
-                    if (enYuksekYilSonu > 0 && form.ruhsatTarihi && form.yapiGrubu && form.metrekare) {
+                    if (enYuksekYilSonu > 0 && form.ruhsatTarihi && form.yapiGrubu && form.metrekare && form.hizmetBedeliOrani) {
                         const orijinalMetrekare = parseFloat(form.metrekare);
-                        console.log('Orijinal Metrekare:', orijinalMetrekare);
                         
-                        // DÜZELTME: Güncel metrekare sadece TAKIP için (ne kadar iş kaldı)
+                        // Güncel metrekare (sadece takip için)
                         const yeniGuncelMetrekare = parseFloat((orijinalMetrekare - (orijinalMetrekare * enYuksekYilSonu / 100)).toFixed(2));
-                        console.log('Yeni Güncel Metrekare (takip):', yeniGuncelMetrekare);
                         
-                        // En yüksek yıl sonu seviyesinin yılına göre birim fiyat al
+                        // Yeni yıl için birim fiyat
                         const enYuksekYilSonuYil = Math.max(...yeniSeviyeleri.map(ys => parseInt(ys.yil) || 0));
                         const yeniDonemYili = enYuksekYilSonuYil + 1;
-                        console.log('Yeni Dönem Yılı:', yeniDonemYili);
-                        
-                        // Yeni dönem için ruhsat tarihi oluştur (sadece birim fiyat için)
                         const yeniDonemRuhsatTarihi = `${yeniDonemYili}-01-01`;
-                        
-                        // Yeni birim fiyat
                         const yeniBirimFiyat = getBirimFiyat(yeniDonemRuhsatTarihi, form.yapiGrubu);
-                        console.log('Yeni Birim Fiyat:', yeniBirimFiyat);
                         
-                        // ÖNEMLİ: ORAN DEĞİŞMEZ! Mevcut oranı kullan
-                        // Oran sadece ruhsat yıldönümünde değişir (useEffect otomatik yapar)
+                        // ÖNEMLİ: Kullanıcının GİRDİĞİ oran kullanılır
                         const mevcutOran = parseFloat(form.hizmetBedeliOrani) || 1.43;
-                        console.log('Mevcut Oran (değişmeyecek):', mevcutOran);
                         
-                        // DÜZELTME: Sözleşme bedeli ORİJİNAL metrekare + MEVCUT oran ile
+                        // Sözleşme bedeli: ORİJİNAL metrekare + GİRİLEN oran
                         const yeniSozlesmeBedeli = hesaplaHizmetBedeli(orijinalMetrekare, yeniBirimFiyat, mevcutOran, form.sanayiBolgesi);
                         const yeniHizmetBedeli = yeniSozlesmeBedeli;
-                        console.log('Yeni Sözleşme Bedeli (orijinal m² + mevcut oran):', yeniSozlesmeBedeli);
-                        console.log('Yeni Hizmet Bedeli:', yeniHizmetBedeli);
                         
                         setForm(prev => ({ 
                             ...prev, 
                             yilSonuSeviyeleri: yeniSeviyeleri,
                             guncelMetrekare: yeniGuncelMetrekare,
                             birimFiyat: yeniBirimFiyat,
-                            // hizmetBedeliOrani: ORAN DEĞİŞMEZ! Çıkardık!
                             sozlesmeBedeli: yeniSozlesmeBedeli,
                             hizmetBedeli: yeniHizmetBedeli
                         }));
-                        
-                        console.log('Form güncellendi! (Oran değişmedi)');
                     } else {
-                        console.log('Hesaplama yapılmadı - eksik bilgi');
                         setForm(prev => ({ ...prev, yilSonuSeviyeleri: yeniSeviyeleri }));
                     }
                     
@@ -3773,19 +3737,10 @@
                 e.preventDefault();
                 if (!form.ybifNo || !form.projeAdi) { alert('YBİF No ve Proje Adı zorunludur'); return; }
                 
-                console.log('=== PROJE KAYDETME ===');
-                console.log('Form State:', form);
-                console.log('Yıl Sonu Seviyeleri:', form.yilSonuSeviyeleri);
-                console.log('Güncel Metrekare:', form.guncelMetrekare);
-                console.log('Sözleşme Bedeli:', form.sozlesmeBedeli);
-                console.log('Hizmet Bedeli:', form.hizmetBedeli);
-                
                 // Metrekare değerlerini 2 ondalık basamağa yuvarla
                 const kayitForm = {...form};
                 if (kayitForm.metrekare) kayitForm.metrekare = Number(parseFloat(kayitForm.metrekare).toFixed(2));
                 if (kayitForm.guncelMetrekare) kayitForm.guncelMetrekare = Number(parseFloat(kayitForm.guncelMetrekare).toFixed(2));
-                
-                console.log('Kaydedilecek Form:', kayitForm);
                 
                 onKaydet(kayitForm);
             };
@@ -3867,60 +3822,15 @@
                                         />
                                     </div>
                                     <div className="form-grup">
-                                        <label className="label">
-                                            Hizmet Oranı (%)
-                                            {manuelOranDuzenleme && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setManuelOranDuzenleme(false);
-                                                        // Otomatik hesaplamayı tetikle (bugünün tarihine göre)
-                                                        const metrekare = parseFloat(form.metrekare) || 0;
-                                                        const ruhsatTarihiObj = new Date(form.ruhsatTarihi);
-                                                        const bugun = new Date();
-                                                        const farkMs = bugun - ruhsatTarihiObj;
-                                                        const farkGun = farkMs / (1000 * 60 * 60 * 24);
-                                                        const farkYil = Math.floor(farkGun / 365.25);
-                                                        const yil = farkYil + 1; // 1. yıl, 2. yıl, 3. yıl...
-                                                        const otomatikOran = getHizmetOrani(form.ruhsatTarihi, metrekare, yil);
-                                                        setForm(prev => ({...prev, hizmetBedeliOrani: otomatikOran}));
-                                                    }}
-                                                    style={{
-                                                        marginLeft: '8px',
-                                                        padding: '4px 8px',
-                                                        fontSize: '11px',
-                                                        background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
-                                                        color: 'white',
-                                                        border: 'none',
-                                                        borderRadius: '6px',
-                                                        cursor: 'pointer',
-                                                        fontWeight: '600'
-                                                    }}
-                                                >
-                                                    ↻ Otomatik Hesapla
-                                                </button>
-                                            )}
-                                        </label>
+                                        <label className="label">Hizmet Oranı (%)</label>
                                         <input 
                                             type="number" 
                                             step="0.01" 
                                             value={form.hizmetBedeliOrani} 
-                                            onChange={e => {
-                                                setForm({...form, hizmetBedeliOrani: e.target.value});
-                                                setManuelOranDuzenleme(true); // Manuel düzenleme moduna geç
-                                            }} 
+                                            onChange={e => setForm({...form, hizmetBedeliOrani: e.target.value})} 
                                             className="input" 
-                                            placeholder="Otomatik hesaplanır veya elle girin"
-                                            style={{
-                                                borderColor: manuelOranDuzenleme ? '#F59E0B' : undefined,
-                                                background: manuelOranDuzenleme ? '#FEF3C7' : undefined
-                                            }}
+                                            placeholder="Örn: 1.43"
                                         />
-                                        {manuelOranDuzenleme && (
-                                            <div style={{fontSize: '11px', color: '#D97706', marginTop: '4px'}}>
-                                                ⚠️ Manuel düzenleme modu aktif
-                                            </div>
-                                        )}
                                     </div>
                                     <div className="form-grup">
                                         <label className="label">Birim Fiyat</label>
@@ -4692,47 +4602,26 @@
                             .filter(h => h.no > 0)
                             .sort((a, b) => a.no - b.no);
                         
-                        // Console'a yazdır (debug için)
-                        console.log('=== SON HAKEDİŞ HESAPLAMA ===');
-                        console.log('Düzenlenen Hakediş No:', hakedis?.hakedisNo);
-                        console.log('Diğer Hakedişler:', siraliHakedisler.map(h => ({ no: h.no, kum: h.kumulatifYuzde })));
-                        
                         // Düzenleme mi yoksa yeni ekleme mi?
                         if (hakedis && hakedis.hakedisNo) {
                             // DÜZENLEME: Bu hakedişten ÖNCEKI hakedişleri bul
                             const mevcutNumara = String(hakedis.hakedisNo).replace(/\D/g, '');
                             const mevcutNo = parseInt(mevcutNumara) || 0;
-                            
-                            console.log('Düzenleme Modu - Mevcut No:', mevcutNo);
-                            
                             const oncekiHakedisler = siraliHakedisler.filter(h => h.no < mevcutNo);
-                            
-                            console.log('Önceki Hakedişler:', oncekiHakedisler.map(h => ({ no: h.no, kum: h.kumulatifYuzde })));
                             
                             if (oncekiHakedisler.length > 0) {
                                 // En büyük numaralı önceki hakedişi al
                                 const enSonOnceki = oncekiHakedisler[oncekiHakedisler.length - 1];
                                 sonHakedisYuzdesi = parseFloat(enSonOnceki.kumulatifYuzde) || 0;
-                                console.log('Son Hakediş Yüzdesi:', sonHakedisYuzdesi, '(Hakediş No:', enSonOnceki.no, ')');
-                            } else {
-                                console.log('Önceki hakediş yok, Son Hakediş: 0');
                             }
                         } else {
                             // YENİ EKLEME: En son (en büyük numaralı) hakedişi al
-                            console.log('Yeni Ekleme Modu');
-                            
                             if (siraliHakedisler.length > 0) {
                                 const enSonHakedis = siraliHakedisler[siraliHakedisler.length - 1];
                                 sonHakedisYuzdesi = parseFloat(enSonHakedis.kumulatifYuzde) || 0;
-                                console.log('Son Hakediş Yüzdesi:', sonHakedisYuzdesi, '(Hakediş No:', enSonHakedis.no, ')');
                             }
                         }
-                    } else {
-                        console.log('=== SON HAKEDİŞ HESAPLAMA ===');
-                        console.log('Başka hakediş yok, Son Hakediş: 0');
                     }
-                    
-                    console.log('SONUÇ - Son Hakediş %:', sonHakedisYuzdesi);
                     
                     // Form'u güncelle
                     setForm(prev => ({ 
